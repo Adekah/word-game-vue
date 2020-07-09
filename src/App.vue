@@ -1,47 +1,65 @@
 <template>
-  <div id="app" class="container">
+  <div id="app" class="container mt-4">
+    <div class="card mb-4" v-if="tamamlandi">
+      <div class="card-body">Tebrikler yarışmayı {{this.puan}} puan ile tamamladınız.</div>
+    </div>
+
     <div class="card mt-4" v-if="!mevcutSoru">
+      <div class="card-header">
+        <h5 class="mb-0">Kelime Oyununa Hoşgeldiniz.</h5>
+      </div>
       <div class="card-body">Yarışmaya başlamak için başla butonuna basın</div>
       <div class="card-footer">
         <button class="btn btn-primary" @click="basla">Yarışmaya başla</button>
       </div>
     </div>
     <div class="card mt-4" v-else>
-      <div class="card-header">{{mevcutSoru.soru}}</div>
+      <h3>
+        <div class="card-header">{{mevcutSoru.soru}}</div>
+      </h3>
       <div class="card-body">
         <div class="d-flex">
-          <div class="harf shadow mr-3" v-for="(harf, index) in harfler" :key="'harf-'+index">
-            <span v-if="harf.acildi">{{harf.harf}}</span>
-            <span v-else></span>
-          </div>
+          <harf :deger="harf.harf" :acik="harf.acildi" v-for="(harf, index) in harfler" :key="'harf-'+index"></harf>
         </div>
       </div>
-      <div class="card-footer">Harf Punanı : {{harfPuan}}</div>
-      <div class="card-footer">Toplam Puan : {{puan}}</div>
       <div class="card-footer">
-        <p>
+        <div class="d-flex">
+          <div class="mr-4">Toplam Puan : {{puan}}</div>
+          <div class="mr-4">
+            Kalan Süreniz:
+            <kbd>{{this.kalanSure}}</kbd>
+          </div>
+          <div class="mr-4">Harf Punanı : {{harfPuan}}</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="input-group">
           <input
             class="form-control"
             type="text"
-            placeholder="cevaplarınızı yaın"
+            placeholder="Cevap"
             v-model="yarismaciCevap"
-            @keyup='yarismaciCevap=yarismaciCevap.toLocaleUpperCase("tr")'
+            @keyup="yarismaciCevap=yarismaciCevap.toLocaleUpperCase('tr')"
           />
-        </p>
-        <p>Cevabınız : {{yarismaciCevap}}</p>
-        <button @click="cevapver">cevap ver</button>
+          <div class="input-group-append">
+            <button class="btn btn-primary mr-2" @click="harfver">Harf İste</button>
+            <button @click="cevapver" class="btn btn-success">Cevap ver</button>
+          </div>
+        </div>
       </div>
-      <div class="card-footer">
-        <button class="btn btn-secondary" @click="harfver">harf ver</button>
-      </div>
+      <div class="card-footer" :class="mesajClass" v-if="mesaj">{{mesaj}}</div>
     </div>
   </div>
 </template>
 
 <script>
+//Componenti Sadece burada kullanacaksam buradan ekliyorum aksi halde main.js'e ekliyorum
+import Harf from "@/components/Harf";
 export default {
   name: "App",
-  components: {},
+  components: {
+    Harf
+  },
   data() {
     return {
       sorular: [
@@ -66,16 +84,63 @@ export default {
           soruldu: false
         }
       ],
+      mesaj: null,
+      mesajClass: "",
+      mesajSure: 0,
       mevcutSoru: null,
       harfler: [],
       puan: 0,
       harfPuan: 0,
-      yarismaciCevap: ""
+      yarismaciCevap: "",
+      sure: null,
+      kalanSure: 240
     };
   },
   methods: {
     basla() {
+      this.tamamlandi = false;
+      this.puan = 0;
+      this.sorular.map(x => {
+        x.soruldu = false;
+      });
+      this.kalanSure = 240;
+      this.sure = setInterval(() => {
+        this.kalanSure--;
+        if (this.kalanSure === 0) {
+          this.bitir();
+        }
+      }, 1000);
+
+      this.soruver();
+      this.mesajgoster("İyi yarışmalar");
+    },
+    bitir() {
+      clearInterval(this.sure);
+      this.mevcutSoru = null;
+      this.tamamlandi = true;
+    },
+    mesajgoster(mesaj, tur) {
+      this.mesaj = mesaj;
+      if (tur === "hata") {
+        this.mesajClass = "bg-danger text-white";
+      } else if (tur === "basari") {
+        this.mesajClass = "bg-success   text-white";
+      } else {
+        this.mesajClass = "bg-dark text-white";
+      }
+      if (this.mesajSure) {
+        clearTimeout(this.mesajSure);
+        this.mesajSure = null;
+      }
+      this.mesajSure = setTimeout(() => (this.mesaj = null), 3000);
+    },
+    soruver() {
+      this.yarismaciCevap = "";
       this.mevcutSoru = this.sorular.find(x => !x.soruldu);
+      if (!this.mevcutSoru) {
+        this.bitir();
+        return;
+      }
       this.harfler = [];
       this.mevcutSoru.cevap.split("").map(x => {
         this.harfler.push({
@@ -84,6 +149,7 @@ export default {
         });
       });
       this.harfPuan = this.harfler.length * 100;
+      this.mevcutSoru.soruldu = true;
     },
     harfver() {
       let rastgeleHarfIndex = Math.floor(Math.random() * this.harfler.length);
@@ -101,6 +167,15 @@ export default {
       this.harfPuan -= 100;
     },
     cevapver() {
+      if (!this.yarismaciCevap.length) {
+        return;
+      }
+
+      if (this.yarismaciCevap.length !== this.harfler.length) {
+        this.mesajgoster("Harf sayıları Uyumlu değil", "hata");
+        return;
+      }
+
       // let cevap = this.yarismaciCevap .replace(/ı/, "I") .replace(/i/, "İ")  .toLocaleUpperCase(); -->> burada türkçe karater için replace edilebilir ya da toLocaleUpperCase('tr') kullanılır
       let cevap = this.yarismaciCevap.toLocaleUpperCase("tr");
       this.yarismaciCevap = cevap;
@@ -108,22 +183,21 @@ export default {
       if (
         this.yarismaciCevap === this.mevcutSoru.cevap.toLocaleUpperCase("tr")
       ) {
-        alert("tebrikler ");
+        this.puan += this.harfPuan;
+        this.mesajgoster("Tebrikler Doğru Bildiniz", "basari");
       } else {
-        alert("yanlıs");
+        this.puan -= this.harfPuan;
+        this.mesajgoster(
+          `Yanlış bildiniz Doğru cevap ${this.mevcutSoru.cevap}!`,
+          "hata"
+        );
       }
+
+      this.soruver();
     }
   }
 };
 </script>
 
 <style>
-.harf {
-  width: 100px;
-  height: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30pt;
-}
 </style>
